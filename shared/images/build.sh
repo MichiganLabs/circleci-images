@@ -2,7 +2,7 @@
 
 set -eu
 
-NEW_ORG=${NEW_ORG:-circleci}
+NEW_ORG=${NEW_ORG:-michiganlabs}
 
 DOCKERFILE_PATH=$1
 pushd $(dirname $DOCKERFILE_PATH)
