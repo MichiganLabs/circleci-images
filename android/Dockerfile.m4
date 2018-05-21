@@ -63,6 +63,12 @@ RUN cd /tmp && wget -O ruby-install-0.6.1.tar.gz https://github.com/postmodern/r
 ENV PATH ${HOME}/.rubies/ruby-2.4.3/bin:${PATH}
 RUN echo 'gem: --env-shebang --no-rdoc --no-ri' >> ~/.gemrc && gem install bundler
 
+# Install crashlytics tooklit
+RUN mkdir -p $HOME/Library/CrashlyticsAndroid && \
+    curl --silent --show-error --location --fail --retry 3 --output /tmp/crashlytics.zip https://ssl-download-crashlytics-com.s3.amazonaws.com/android/ant/crashlytics.zip && \
+    unzip /tmp/crashlytics.zip -d $HOME/Library/CrashlyticsAndroid && \
+    rm -f /tmp/crashlytics.zip
+
 # Download and install Android SDK
 RUN sudo mkdir -p ${android_home} && \
     sudo chown -R circleci:circleci ${android_home} && \
