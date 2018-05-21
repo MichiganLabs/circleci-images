@@ -1,8 +1,0 @@
-#!/bin/bash
-
-NAME=Rust
-BASE_REPO=rust
-VARIANTS=(browsers node node-browsers)
-
-source ../shared/images/generate-node.sh
-source ../shared/images/generate.sh

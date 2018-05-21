@@ -1,8 +1,0 @@
-#!/bin/bash
-
-NAME=Ruby
-BASE_REPO=ruby
-VARIANTS=(browsers node node-browsers)
-
-source ../shared/images/generate-node.sh
-source ../shared/images/generate.sh

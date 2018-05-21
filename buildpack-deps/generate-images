@@ -1,7 +1,0 @@
-#!/bin/bash
-
-NAME="buildpack-deps"
-BASE_REPO=buildpack-deps
-VARIANTS=(browsers)
-
-source ../shared/images/generate.sh

@@ -1,7 +1,0 @@
-#!/bin/bash
-
-NAME="jruby"
-BASE_REPO=jruby
-VARIANTS=(browsers)
-
-source ../shared/images/generate.sh

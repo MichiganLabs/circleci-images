@@ -1,9 +1,0 @@
-#!/bin/bash
-
-NAME=MySQL
-BASE_REPO=mysql
-VARIANTS=(ram)
-
-INCLUDE_ALPINE=true
-
-source ../shared/images/generate.sh

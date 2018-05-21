@@ -1,9 +1,0 @@
-#!/bin/bash
-
-NAME=MariaDB
-BASE_REPO=mariadb
-VARIANTS=(ram)
-
-INCLUDE_ALPINE=true
-
-source ../shared/images/generate.sh
