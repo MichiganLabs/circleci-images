@@ -18,8 +18,6 @@ syscmd(`tail -n +2 ../shared/images/Dockerfile-basic.template')
 # Switching user can confuse Docker's idea of $HOME, so we set it explicitly
 ENV HOME /home/circleci
 
-# Install Google Cloud SDK
-
 RUN sudo apt-get update -qqy && sudo apt-get install -qqy \
         python-dev \
         python-setuptools \
@@ -31,18 +29,8 @@ RUN sudo apt-get install gcc-multilib && \
     sudo pip uninstall crcmod && \
     sudo pip install -U crcmod
 
-RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
-    echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-
-RUN sudo apt-get update && sudo apt-get install -y google-cloud-sdk && \
-    gcloud config set core/disable_usage_reporting true && \
-    gcloud config set component_manager/disable_update_check true
-
 ARG sdk_version=sdk-tools-linux-3859397.zip
-ARG ndk_version=android-ndk-r17b-linux-x86_64.zip
 ARG android_home=/opt/android/sdk
-ARG android_ndk_home=/opt/android/ndk
 
 # SHA-256 444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0
 
@@ -76,16 +64,8 @@ RUN sudo mkdir -p ${android_home} && \
     unzip -q /tmp/${sdk_version} -d ${android_home} && \
     rm /tmp/${sdk_version}
 
-# Download and install Android NDK
-RUN sudo mkdir -p ${android_ndk_home} && \
-    sudo chown -R circleci:circleci ${android_ndk_home} && \
-    curl --silent --show-error --location --fail --retry 3 --output  /tmp/${ndk_version} https://dl.google.com/android/repository/${ndk_version} && \
-    unzip -q /tmp/${ndk_version} -d ${android_ndk_home} && \
-    rm /tmp/${ndk_version}
-
 # Set environmental variables
 ENV ANDROID_HOME ${android_home}
-ENV ANDROID_NDK_HOME ${android_ndk_home}
 ENV ADB_INSTALL_TIMEOUT 120
 ENV PATH=${ANDROID_HOME}/emulator:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools:${PATH}
 
