@@ -29,10 +29,10 @@ RUN sudo apt-get install gcc-multilib && \
     sudo pip uninstall crcmod && \
     sudo pip install -U crcmod
 
-ARG sdk_version=sdk-tools-linux-3859397.zip
+ARG sdk_version=sdk-tools-linux-4333796.zip
 ARG android_home=/opt/android/sdk
 
-# SHA-256 444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0
+# SHA-256 92ffee5a1d98d856634e8b71132e8a95d96c83a63fde1099be3d86df3106def9
 
 RUN sudo apt-get update && \
     sudo apt-get install --yes \
@@ -80,8 +80,8 @@ RUN sdkmanager \
   "emulator"
 
 RUN sdkmanager \
-  "build-tools;28.0.0" \
-  "build-tools;28.0.3"
+  "build-tools;28.0.3" \
+  "build-tools;29.0.0"
 
 # API_LEVEL string gets replaced by m4
 RUN sdkmanager "platforms;android-API_LEVEL"
