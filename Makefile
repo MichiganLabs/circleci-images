@@ -1,5 +1,5 @@
 BUNDLES = \
-  android
+  android node
 
 images: $(foreach b, $(BUNDLES), $(b)/generate_images)
 

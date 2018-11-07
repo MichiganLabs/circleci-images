@@ -1,0 +1,52 @@
+#!/bin/sh
+
+set -eu
+
+PROJECT_PATH=$1
+SCRATCH_PATH=$2
+
+DEFAULT_NODE_IMAGE="circleci/node:7.8"
+
+# packages.json is required but not sufficient reason for node projects
+# as node is frequently used in non node projects
+if ! [ -e package.json ]
+then
+  exit 1
+fi
+
+if [ -n "$(find test/ -name '*.js' 2>/dev/null)" ]
+then
+  echo 'Node.js (yarn)'
+  cat <<EOF > $SCRATCH_PATH/config.yml
+version: 2
+jobs:
+  build:
+    docker:
+      # change this image to the appropriate node version
+      # if using Selenium, use ${DEFAULT_NODE_IMAGE}-browsers image instead 
+      - image: ${DEFAULT_NODE_IMAGE}
+    environment:
+      NODE_ENV: test
+    working_directory: ~/code
+    steps:
+      - checkout
+
+      # install and cache dependencies
+      - restore_cache:
+          keys:
+	    - v1-node-dependencies-{{ checksum "package.json" }}
+	    - v1-node-dependencies-
+      - run: yarn install
+      - save_cache:
+	  key: v1-node-dependencies-{{ checksum "package.json" }}
+	  paths:
+	    - node_modules
+
+      # run tests
+      - run: yarn test
+EOF
+  exit 0
+
+fi
+
+exit 1

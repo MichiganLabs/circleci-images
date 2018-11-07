@@ -1,3 +1,4 @@
 /*/images/
 /*/resources/
 *.DS_Store
+!/shared/images/
