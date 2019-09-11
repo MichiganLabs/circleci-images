@@ -20,12 +20,12 @@ ENV HOME /home/circleci
 
 RUN sudo apt-get update -qqy && sudo apt-get install -qqy \
         python-dev \
+        python-pip \
         python-setuptools \
         apt-transport-https \
         lsb-release
 
 RUN sudo apt-get install gcc-multilib && \
-    sudo easy_install -U pip && \
     sudo pip uninstall crcmod && \
     sudo pip install -U crcmod
 
@@ -80,8 +80,8 @@ RUN sdkmanager \
   "emulator"
 
 RUN sdkmanager \
-  "build-tools;28.0.3" \
-  "build-tools;29.0.0"
+  "build-tools;29.0.0" \
+  "build-tools;29.0.2"
 
 # API_LEVEL string gets replaced by m4
 RUN sdkmanager "platforms;android-API_LEVEL"
