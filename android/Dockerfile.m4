@@ -81,7 +81,13 @@ RUN sdkmanager \
 
 RUN sdkmanager \
   "build-tools;29.0.0" \
-  "build-tools;29.0.2"
+  "build-tools;29.0.2" \
+  "system-images;android-29;google_apis;x86"
 
 # API_LEVEL string gets replaced by m4
 RUN sdkmanager "platforms;android-API_LEVEL"
+
+RUN ECHO no | avdmanager create avd --force \
+  --name testAVD \
+  --abi google_apis/x86 \
+  --package 'system-images;android-29;google_apis;x86'
