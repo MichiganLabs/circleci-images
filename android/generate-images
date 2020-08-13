@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-source ../shared/images/generate-node.sh
+# source ../shared/images/generate-node.sh
 
 function generate_dockerfile {
   local api_level=$1
@@ -21,7 +21,7 @@ for API in 26 27 28 29; do
   echo Generating Android ${API} Dockerfiles
 
   tag=api-${API}-alpha
-  node_variant_tag=api-${API}-node8-alpha
+  node_variant_tag=api-${API}-node12-alpha
 
   generate_dockerfile ${API} ${tag}
 
