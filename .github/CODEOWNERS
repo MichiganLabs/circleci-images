@@ -1,13 +1,2 @@
-# Ping these folks when changes are made to this repository
-*   @dantoml @marcomorain @iynere @ryanwohara
-
-# For images with a language advocate, recommend them instead.
-
-ruby/*      @zzak
-clojure/*   @technomancy
-openjdk/*   @eddiewebb
-golang/*    @felicianotech
-node/*      @hannahhenderson
-php/*       @ryanwohara
-android/*   @marcomorain
-python/*    @iynere
+# Automatically request PR reviews from the CPE Team as a whole and Ricardo specifically
+*	@circleci/cpeng @felicianotech

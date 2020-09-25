@@ -44,7 +44,7 @@ Sample Dockerfile
 
 ## `{1}:<version>-browsers`
 
-This image makes browser testing easier.  It extends the defacto image and installs Firefox and Chrome/chromedriver and configure them to run in a containerized environment
+This image makes browser testing easier.  It extends the defacto image and installs Firefox/geckodriver and Chrome/chromedriver and configure them to run in a containerized environment
 
 # User Feedback
 ## Issues

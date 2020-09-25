@@ -1,9 +1,13 @@
-version: 2
+version: 2.1
+
+orbs:
+  circle-compare-url: iynere/compare-url@0.4.8
+
 jobs:
   generate_dockerfiles:
     working_directory: ~/repo
-    docker:
-      - image: gcc:7
+    resource_class: small
+    docker: [image: gcc:7]
     steps:
       - checkout
       - run:
@@ -17,219 +21,441 @@ jobs:
       - store_artifacts:
           path: /tmp/dockerfiles
           destination: Dockerfiles
-      # upload Dockerfiles to circleci-public/circleci-dockerfiles repo
+
+      - attach_workspace:
+          at: workspace
+
+      # skip pushing identical dockerfiles to circleci-dockerfiles if relevant code is unchanged
+      - run:
+          name: only proceed if `shared` or `Makefile` or any image dirs were modified (unless we're on master)
+          command: |
+            # if this is a forked PR, skip this job
+            # community contributors won't have perms to push to dockerfiles repo anyway
+
+            if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+              echo "this is a forked PR; skipping push to circleci-dockerfiles repo"
+              circleci step halt
+              exit 0
+            fi
+
+            make list_bundles
+
+            # Sometimes we have the "compare-url" functionality off
+            if [ -f workspace/CIRCLE_COMPARE_URL.txt ]; then
+              # save value stored in file to a local env var
+              CIRCLE_COMPARE_URL=$(cat workspace/CIRCLE_COMPARE_URL.txt)
+
+              # borrowed from https://discuss.circleci.com/t/does-circleci-2-0-work-with-monorepos
+
+              COMMIT_RANGE=$(echo $CIRCLE_COMPARE_URL | sed 's:^.*/compare/::g')
+              echo "Commit range: $COMMIT_RANGE"
+
+              if [[ ! $(git diff $COMMIT_RANGE --name-status | grep -e "shared" -e "Makefile" -f BUNDLES.txt) && "$CIRCLE_BRANCH" != "master" ]]; then
+                circleci step halt
+                exit 0
+              fi
+            fi
+
+      # otherwise, upload Dockerfiles to circleci-public/circleci-dockerfiles repo
       - add_ssh_keys:
           fingerprints:
             - "af:0a:93:75:51:75:1f:16:90:d9:97:b1:7a:bb:f0:27"
+
+      # potentially push Dockerfiles to CircleCI-Public/circleci-dockerfiles on circleci-images pushes to any branch
+      # checkout the equivalent branch on circleci-dockerfiiles
+      # if it doesn't exist, create it
+      # eventually, some kind of cron job that prunes branches would be helpful, but populating that repo with tons of branches of dockerfiles isn't that annoying & will be helpful for development
+
       - run:
-          name: git config
+          name: git config, git clone
           command: |
-            git config --global user.email "$CIRCLE_USERNAME@users.noreply.github.com"
-            git config --global user.name "$CIRCLE_USERNAME"
-      - run: git clone git@github.com:CircleCI-Public/circleci-dockerfiles.git
-      # only push Dockerfiles to github on circleci-images pushes to "staging" or "master"
+            if [ ! -z "$CIRCLE_USERNAME" ]; then
+
+              git config --global user.email "$CIRCLE_USERNAME@users.noreply.github.com"
+              git config --global user.name "$CIRCLE_USERNAME"
+            else
+
+              git config --global user.email "community-partner@circleci.com"
+              git config --global user.name "cpe-team"
+            fi
+
+            git clone git@github.com:CircleCI-Public/circleci-dockerfiles.git
+
       - run:
-          name: branch control flow & git push
+          name: git checkout, git push
           working_directory: circleci-dockerfiles
           command: |
-            if [[ "$CIRCLE_BRANCH" == "master" ]]
-            then
-              export DOCKERFILES_BRANCH=master
-            fi
-            if [[ "$CIRCLE_BRANCH" == "staging" ]]
-            then
-              export DOCKERFILES_BRANCH=staging
-            fi
-            if [ ! -e $DOCKERFILES_BRANCH ]
-            then
-              git checkout $DOCKERFILES_BRANCH
-              cp -rfv /tmp/dockerfiles/* ~/repo/circleci-dockerfiles
-              git add .
-              git commit --allow-empty -m "Dockerfiles from $CIRCLE_BUILD_URL"
-              git push -f origin $DOCKERFILES_BRANCH
-            fi
+            git checkout $(git show-ref --verify --quiet refs/heads/$CIRCLE_BRANCH || echo '-b') $CIRCLE_BRANCH
+
+            cp -rfv /tmp/dockerfiles/* ~/repo/circleci-dockerfiles
+
+            git add .
+            git commit --allow-empty -m "Dockerfiles from $CIRCLE_BUILD_URL"
+            git push -f origin $CIRCLE_BRANCH
 
   generate_automated_build_images:
     working_directory: ~/repo
+    resource_class: small
     docker:
       - image: gcc:7
     steps:
       - checkout
+
       - run:
           name: Generate Dockerfiles, READMEs for automated builds
           command: |
             make -j
             make example_images
+
       - store_artifacts:
           path: /tmp/example-images
+
+      - attach_workspace:
+          at: workspace
+
+      # skip pushing identical Dockerfiles/READMEs to example-images if relevant code is unchanged
+      # will also avoid tons of unecessary queueing in our Docker Hub automated builds
+      - run:
+          name: only proceed if `shared` or `Makefile` or any image dirs were modified (unless we're on master)
+          command: |
+            # if this is a forked PR, skip this job
+            # community contributors won't have perms to push to example-images repo anyway
+
+            if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+              echo "this is a forked PR; skipping push to example-images repo"
+              circleci step halt
+              exit 0
+            fi
+
+            make list_bundles
+
+            # Sometimes we have the "compare-url" functionality off
+            if [ -f workspace/CIRCLE_COMPARE_URL.txt ]; then
+              # save value stored in file to a local env var
+              CIRCLE_COMPARE_URL=$(cat workspace/CIRCLE_COMPARE_URL.txt)
+
+              # borrowed from https://discuss.circleci.com/t/does-circleci-2-0-work-with-monorepos
+
+              COMMIT_RANGE=$(echo $CIRCLE_COMPARE_URL | sed 's:^.*/compare/::g')
+              echo "Commit range: $COMMIT_RANGE"
+
+              if [[ ! $(git diff $COMMIT_RANGE --name-status | grep -e "shared" -e "Makefile" -f BUNDLES.txt) && "$CIRCLE_BRANCH" != "master" ]]; then
+                circleci step halt
+                exit 0
+              fi
+            fi
+
       - add_ssh_keys:
           fingerprints:
             - "9c:e2:cf:bb:f2:25:4d:05:d9:b0:30:bf:73:c5:7d:8f"
+
       - run:
-          name: git config
+          name: git config, git clone
           command: |
             git config --global user.email "$CIRCLE_USERNAME@users.noreply.github.com"
             git config --global user.name "$CIRCLE_USERNAME"
 
-      - run: git clone git@github.com:CircleCI-Public/example-images.git
+            git clone git@github.com:CircleCI-Public/example-images.git
 
-      # only push example Dockerfiles/READMEs to GitHub on circleci-images pushes to "staging" or "master"
       - run:
-          name: branch control flow & git push
+          name: git checkout, git push
           working_directory: example-images
           command: |
-            if [[ "$CIRCLE_BRANCH" == "master" ]]
-            then
-              export EXAMPLE_IMAGES_BRANCH=master
-            fi
-            if [[ "$CIRCLE_BRANCH" == "staging" ]]
-            then
-              export EXAMPLE_IMAGES_BRANCH=staging
-            fi
-            if [ ! -e $EXAMPLE_IMAGES_BRANCH ]
-            then
-              git checkout $EXAMPLE_IMAGES_BRANCH
-              cp -rfv /tmp/example-images/* ~/repo/example-images
-              git add .
-              git commit --allow-empty -m "example images from $CIRCLE_BUILD_URL"
-              git push -f origin $EXAMPLE_IMAGES_BRANCH
+            git checkout $(git show-ref --verify --quiet refs/heads/$CIRCLE_BRANCH || echo '-b') $CIRCLE_BRANCH
+
+            cp -rfv /tmp/example-images/* ~/repo/example-images
+
+            git add .
+            git commit --allow-empty -m "example images from $CIRCLE_BUILD_URL"
+
+            if [[ "$CIRCLE_BRANCH" == "master" || "$CIRCLE_BRANCH" == "staging" ]]; then
+              git push -f origin $CIRCLE_BRANCH
+            else
+              # docker hub automated builds on the ccitest org are looking for tags of the following pattern:
+              # /ccitest-*/
+              # append the branch (since that org pulls from all non-master/staging branches) & SHA1
+
+              CCITEST_TAG=ccitest-$CIRCLE_BRANCH-${CIRCLE_SHA1:0:7}
+              git tag $CCITEST_TAG
+              git push origin $CCITEST_TAG
             fi
 
   refresh_tools_cache:
+    resource_class: small
     docker:
-      - image: circleci/python:3.6.6 # aws cli dependenncy pyaml does not yet support 3.7 - https://github.com/aws/aws-cli/issues/3427
+      - image: circleci/python:3.6.6 # aws cli dependency pyaml does not yet support 3.7 - https://github.com/aws/aws-cli/issues/3427
     steps:
       - checkout
-      - run: sudo pip install awscli==1.14.17
-      - run: cd ./shared/images; ./refresh-tools-cache
+      - run: sudo pip install awscli==1.18.48
+      - run: |
+          # if this is a forked PR, stop this step;
+          # community contributors won't have perms to upload to our S3 bucket
+
+          if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+            echo "this is a forked PR; skipping rest of this step"
+            circleci step halt
+            exit 0
+          fi
+
+          cd ./shared/images; ./refresh-tools-cache
 
   publish_image: &publish_image
-    machine: true
+    machine:
+      image: ubuntu-1604:202004-01
     working_directory: ~/circleci-bundles
+    shell: /bin/bash -eol pipefail
+    parameters:
+      scheduled-workflow:
+        type: boolean
+        default: false
     steps:
       - checkout
       - run:
           name: Docker Login
-          command: docker login -u $DOCKER_USER -p $DOCKER_PASS
-      - run:
-          name: Build and Publish Images
           command: |
-            export COMPUTED_ORG=ccistaging
-            if [[ "$CIRCLE_BRANCH" == "master" ]]
-            then
+            # if this is a forked PR, skip Docker login;
+            # community contributors won't have our Docker perms
+
+            if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+              echo "this is a forked PR; skipping Docker login"
+            else
+              docker login -u $DOCKER_USER -p $DOCKER_PASS
+            fi
+
+      - attach_workspace:
+          at: workspace
+
+      - run:
+          name: only proceed if `$PLATFORM` or `shared` or `Makefile` were modified (unless we're on master)
+          command: |
+            # Sometimes we have the "compare-url" functionality off. If so, the
+            # file below won't exists. If that's the case, skip it.
+            if [ ! -f workspace/CIRCLE_COMPARE_URL.txt ]; then
+              exit 0
+            fi
+
+            # save value stored in file to a local env var
+            CIRCLE_COMPARE_URL=$(cat workspace/CIRCLE_COMPARE_URL.txt)
+
+            # borrowed from https://discuss.circleci.com/t/does-circleci-2-0-work-with-monorepos
+
+            COMMIT_RANGE=$(echo $CIRCLE_COMPARE_URL | sed 's:^.*/compare/::g')
+            echo "Commit range: $COMMIT_RANGE"
+
+            # if this is a forked PR, skip commit range logic; it doesn't handle forks well,
+            # plus we likely want to always build all images on forks anyway,
+            # to help community members assess their PRs and ultimately
+            # be able to make meaningful contributions to the repo
+
+            if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+              echo "this is a forked PR; building/testing all images"
+            else
+              if [[ ! $(git diff $COMMIT_RANGE --name-status | grep -e "$PLATFORM" -e "shared" -e "Makefile") && "$CIRCLE_BRANCH" != "master" ]]; then
+                circleci step halt
+              fi
+            fi
+
+      - run:
+          name: Install goss & dgoss (orbify this later)
+          command: |
+            # rather than give internet scripts SU rights, we install to local user bin and add to path
+
+            # can't set these as normal job env vars, b/c they're overriden by the env section in the platform-specific jobs
+            export GOSS_DST=~/bin
+
+            curl -fsSL https://goss.rocks/install | sh
+            goss -version
+
+      - run:
+          name: setup test results dir
+          command: |
+            mkdir test-results
+
+      - run:
+          name: Build, Test, Publish Images
+          no_output_timeout: 20m
+          command: |
+            export COMPUTED_ORG=ccitest
+            if [[ "$CIRCLE_BRANCH" == "master" ]]; then
               export COMPUTED_ORG=circleci
+            elif [[ "$CIRCLE_BRANCH" == "staging" ]]; then
+              export COMPUTED_ORG=ccistaging
             fi
             export NEW_ORG=${NEW_ORG:-$COMPUTED_ORG}
 
-            make -j $PLATFORM/publish_images
+            export GOSS_FILES_PATH=~/circleci-bundles/$PLATFORM
+            export GOSS_FILES_STRATEGY=cp
+            export GOSS_SLEEP=1s
+
+            # setup test results for $PLATFORM
+            mkdir test-results/$PLATFORM
+
+            # push images by default
+            export PUSH_IMAGES=true
+
+            # forked PR? set PUSH_IMAGES to false (build/test but don't push)
+            # community contributors won't have perms to push to our docker hub
+            if [[ $CIRCLE_PR_REPONAME == "circleci-images" ]]; then
+              export PUSH_IMAGES=false
+              echo "forked PR: building/testing images; skipping docker push"
+            fi
+
+            # add -w -d for debug info
+            make -j -w -d $PLATFORM/publish_images
+
       - store_artifacts:
           path: "."
           destination: circleci-bundles
 
+      - store_test_results:
+          path: test-results
+
   publish_android:
     <<: *publish_image
+    parallelism: 8 # don't increase or decrease this, it correlates to the number of API versions we build in android/generate images
     environment:
       - PLATFORM: android
 
-  publish_node:
+  publish_buildpack-deps:
     <<: *publish_image
+    parallelism: 8
     environment:
-      - PLATFORM: node
+      - PLATFORM: buildpack-deps
 
-  publish_python:
-    <<: *publish_image
-    parallelism: 2
-    environment:
-      - PLATFORM: python
-
-  publish_ruby:
-    <<: *publish_image
-    environment:
-      - PLATFORM: ruby
-
-  publish_golang:
-    <<: *publish_image
-    environment:
-      - PLATFORM: golang
-
-  publish_php:
+  publish_clojure:
     <<: *publish_image
     parallelism: 3
     environment:
-      - PLATFORM: php
-
-  publish_redis:
-    <<: *publish_image
-    environment:
-      - PLATFORM: redis
-
-  publish_postgres:
-    <<: *publish_image
-    environment:
-      - PLATFORM: postgres
-
-  publish_mariadb:
-    <<: *publish_image
-    environment:
-      - PLATFORM: mariadb
-
-  publish_mysql:
-    <<: *publish_image
-    environment:
-      - PLATFORM: mysql
-
-  publish_mongo:
-    <<: *publish_image
-    environment:
-      - PLATFORM: mongo
-
-  publish_elixir:
-    <<: *publish_image
-    environment:
-      - PLATFORM: elixir
-
-  publish_rust:
-    <<: *publish_image
-    environment:
-      - PLATFORM: rust
+      - PLATFORM: clojure
 
   publish_dynamodb:
     <<: *publish_image
     environment:
       - PLATFORM: dynamodb
 
+  publish_elixir:
+    <<: *publish_image
+    parallelism: 3
+    environment:
+      - PLATFORM: elixir
+
+  publish_golang:
+    <<: *publish_image
+    parallelism: 3
+    environment:
+      - PLATFORM: golang
+
   publish_jruby:
-    <<: *publish_image
-    environment:
-      - PLATFORM: jruby
-
-  publish_clojure:
-    <<: *publish_image
-    environment:
-      - PLATFORM: clojure
-
-  publish_openjdk:
-    <<: *publish_image
-    environment:
-      - PLATFORM: openjdk
-
-  publish_buildpack-deps:
     <<: *publish_image
     parallelism: 2
     environment:
-      - PLATFORM: buildpack-deps
+      - PLATFORM: jruby
 
-workflow_filters: &workflow_filters
+  publish_mariadb:
+    <<: *publish_image
+    environment:
+      - PLATFORM: mariadb
+
+  publish_mongo:
+    <<: *publish_image
+    environment:
+      - PLATFORM: mongo
+
+  publish_mysql:
+    <<: *publish_image
+    environment:
+      - PLATFORM: mysql
+
+  publish_node:
+    <<: *publish_image
+    parallelism: 4
+    environment:
+      - PLATFORM: node
+
+  publish_openjdk:
+    <<: *publish_image
+    parallelism: 2
+    environment:
+      - PLATFORM: openjdk
+
+  publish_php:
+    <<: *publish_image
+    parallelism: 12
+    environment:
+      - PLATFORM: php
+
+  publish_postgres:
+    <<: *publish_image
+    environment:
+      - PLATFORM: postgres
+
+  publish_python:
+    <<: *publish_image
+    parallelism: 8
+    environment:
+      - PLATFORM: python
+
+  publish_redis:
+    <<: *publish_image
+    environment:
+      - PLATFORM: redis
+
+  publish_ruby:
+    <<: *publish_image
+    parallelism: 3
+    environment:
+      - PLATFORM: ruby
+
+  publish_rust:
+    <<: *publish_image
+    environment:
+      - PLATFORM: rust
+
+  publish_erlang:
+    <<: *publish_image
+    environment:
+      - PLATFORM: erlang
+
+  prune_tags:
+    # This job will run regularly in order to delete Docker tags that we're
+    # not using. This will help keep the amount of Docker Hub storage we're
+    # using at a controlled level.
+    docker:
+      - image: cimg/base:2020.08
+    parameters:
+      images:
+        description: "The images whose tags are to be deleted, comma separated."
+        type: string
+      duration:
+        description: "The amount of days of which to delete a tag."
+        type: string
+    steps:
+      - run:
+          name: "Install Sonar"
+          command: |
+            SONAR_VER=0.7.0
+            SONAR_URL="https://github.com/felicianotech/sonar/releases/download/v${SONAR_VER}/sonar-v${SONAR_VER}-linux-amd64.tar.gz"
+            curl -sSL $SONAR_URL | sudo tar -xz -C /usr/local/bin sonar
+      - run:
+          name: "Delete Tags"
+          command: |
+            IFS=',' read -r -a images \<<< "<< parameters.images >>"
+            for image in "${images[@]}"
+            do
+              sonar tags delete --yes --gt=<< parameters.duration >> --field=date $image
+            done
+
+cron_workflow_filters: &cron_workflow_filters
+  scheduled-workflow: true
   requires:
     - refresh_tools_cache
-  filters:
-    branches:
-      only:
-        - staging
-        - master
+
+commit_workflow_filters: &commit_workflow_filters
+  scheduled-workflow: false
+  requires:
+    - refresh_tools_cache
 
 workflows:
-  version: 2
   build_test_deploy:
     triggers:
       - schedule:
@@ -239,68 +465,60 @@ workflows:
               only:
                 - master
     jobs:
+      #- circle-compare-url/reconstruct:
+      #    name: reconstruct_compare_url
+      #    resource-class: small
       - generate_dockerfiles
       - refresh_tools_cache:
           requires:
             - generate_dockerfiles
-          filters:
-            branches:
-              only:
-                - staging
-                - master
-      - publish_android:  *workflow_filters
-      - publish_node:     *workflow_filters
-      - publish_python:   *workflow_filters
-      - publish_ruby:     *workflow_filters
-      - publish_golang:   *workflow_filters
-      - publish_php:      *workflow_filters
-      - publish_redis:    *workflow_filters
-      - publish_postgres: *workflow_filters
-      - publish_mariadb:  *workflow_filters
-      - publish_mysql:    *workflow_filters
-      - publish_mongo:    *workflow_filters
-      - publish_elixir:   *workflow_filters
-      - publish_jruby:    *workflow_filters
-      - publish_clojure:  *workflow_filters
-      - publish_openjdk:  *workflow_filters
-      - publish_dynamodb:     *workflow_filters
-      - publish_rust:     *workflow_filters
-      - publish_buildpack-deps:   *workflow_filters
+      - publish_android:        *cron_workflow_filters
+      - publish_node:           *cron_workflow_filters
+      - publish_python:         *cron_workflow_filters
+      - publish_ruby:           *cron_workflow_filters
+      - publish_golang:         *cron_workflow_filters
+      - publish_php:            *cron_workflow_filters
+      - publish_redis:          *cron_workflow_filters
+      - publish_postgres:       *cron_workflow_filters
+      - publish_mariadb:        *cron_workflow_filters
+      - publish_mysql:          *cron_workflow_filters
+      - publish_mongo:          *cron_workflow_filters
+      - publish_elixir:         *cron_workflow_filters
+      - publish_jruby:          *cron_workflow_filters
+      - publish_clojure:        *cron_workflow_filters
+      - publish_openjdk:        *cron_workflow_filters
+      - publish_dynamodb:       *cron_workflow_filters
+      - publish_rust:           *cron_workflow_filters
+      - publish_buildpack-deps: *cron_workflow_filters
+      - publish_erlang:         *commit_workflow_filters
+
   commit:
     jobs:
+      #- circle-compare-url/reconstruct:
+      #    name: reconstruct_compare_url
+      #    resource-class: small
       - generate_dockerfiles
-      - generate_automated_build_images:
-          requires:
-            - generate_dockerfiles
-          filters:
-            branches:
-              only:
-                - master
-                - production
-                - parallel
+      - generate_automated_build_images
       - refresh_tools_cache:
           requires:
             - generate_dockerfiles
-          filters:
-            branches:
-              only:
-                - staging
-                - master
-      - publish_android:  *workflow_filters
-      - publish_node:     *workflow_filters
-      - publish_python:   *workflow_filters
-      - publish_ruby:     *workflow_filters
-      - publish_golang:   *workflow_filters
-      - publish_php:      *workflow_filters
-      - publish_redis:    *workflow_filters
-      - publish_postgres: *workflow_filters
-      - publish_mariadb:  *workflow_filters
-      - publish_mysql:    *workflow_filters
-      - publish_mongo:    *workflow_filters
-      - publish_elixir:   *workflow_filters
-      - publish_jruby:    *workflow_filters
-      - publish_clojure:  *workflow_filters
-      - publish_openjdk:  *workflow_filters
-      - publish_rust:     *workflow_filters
-      - publish_dynamodb:     *workflow_filters
-      - publish_buildpack-deps:   *workflow_filters
+            - generate_automated_build_images
+      - publish_android:        *commit_workflow_filters
+      - publish_node:           *commit_workflow_filters
+      - publish_python:         *commit_workflow_filters
+      - publish_ruby:           *commit_workflow_filters
+      - publish_golang:         *commit_workflow_filters
+      - publish_php:            *commit_workflow_filters
+      - publish_redis:          *commit_workflow_filters
+      - publish_postgres:       *commit_workflow_filters
+      - publish_mariadb:        *commit_workflow_filters
+      - publish_mysql:          *commit_workflow_filters
+      - publish_mongo:          *commit_workflow_filters
+      - publish_elixir:         *commit_workflow_filters
+      - publish_jruby:          *commit_workflow_filters
+      - publish_clojure:        *commit_workflow_filters
+      - publish_openjdk:        *commit_workflow_filters
+      - publish_rust:           *commit_workflow_filters
+      - publish_dynamodb:       *commit_workflow_filters
+      - publish_buildpack-deps: *commit_workflow_filters
+      - publish_erlang:         *commit_workflow_filters

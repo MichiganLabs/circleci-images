@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copy the latest Dockerfile and README for each image, to use as an example
-# on Docker Hub.
+# Copy the latest Dockerfile and README for each image, to use as an example on Docker Hub
 #
 set -eu -o pipefail
 

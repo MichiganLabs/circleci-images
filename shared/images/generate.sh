@@ -12,6 +12,7 @@ NEW_REPO=${NEW_REPO:-${NEW_ORG}/${BASE_REPO_BASE}}
 INCLUDE_ALPINE=${INCLUDE_ALPINE:-false}
 
 TAG_FILTER="${TAG_FILTER:-cat}"
+TAG_INCLUDE_FILTER="${TAG_INCLUDE_FILTER:-cat}"
 
 CIRCLE_NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 CIRCLE_NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
@@ -26,8 +27,9 @@ function find_tags_and_aliases() {
   curl --silent --location --fail --retry 3 "$MANIFEST_SOURCE" \
     | grep Tags \
     | sed  's/^.*Tags: //g' \
-    | grep -v $ALPINE_TAG -e 'slim' -e 'onbuild' -e windows -e wheezy -e nanoserver \
+    | grep -v $ALPINE_TAG -e 'slim' -e 'onbuild' -e windows -e nanoserver -e alpha -e beta -e preview -e sid -e wheezy -e jessie \
     | ${TAG_FILTER} \
+    | ${TAG_INCLUDE_FILTER} \
     | sed 's/, /:/' \
     | sed 's/, /,/g' \
     | sort | awk "NR % ${CIRCLE_NODE_TOTAL} == ${CIRCLE_NODE_INDEX}"
@@ -38,6 +40,9 @@ SHARED_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 TEMPLATE=${TEMPLATE:-basic}
 VARIANTS=${VARIANTS:-none}
+if [[ ${VARIANTS[@]} = *"browsers"* ]]
+  then VARIANTS=($(echo ${VARIANTS[@]} | sed -E 's/([^ ]*browsers)/\1 \1-legacy/g')) 
+fi
 
 function find_template() {
   # find the right template - start with invoker path
@@ -90,15 +95,13 @@ function render_readme_template() {
 
   if [ -e images/latest/Dockerfile ]
   then
-    cat images/latest/Dockerfile | \
-      grep -v -e '^###' -e '^{{' -e '^# BEGIN' -e '^# END BEGIN' | \
+     grep -v -e '^###' -e '^{{' -e '^# BEGIN' -e '^# END BEGIN' images/latest/Dockerfile | \
       grep -v -e '^ *$' > $BASIC_TEMP_PATH
   fi
 
   if [ -e images/latest/browsers/Dockerfile ]
   then
-    cat images/latest/browsers/Dockerfile | \
-     grep -v -e '^###' -e '^{{' -e '^# BEGIN' -e '^# END BEGIN' | \
+    grep -v -e '^###' -e '^{{' -e '^# BEGIN' -e '^# END BEGIN' images/latest/browsers/Dockerfile | \
      grep -v -e '^ *$' > $BROWSERS_TEMP_PATH
   else
     TEMPLATE_TYPE=service
@@ -106,8 +109,7 @@ function render_readme_template() {
 
   TEMPLATE_PATH=$(find_template $TEMPLATE_TYPE README)
 
-  cat $TEMPLATE_PATH | \
-    sed "s|{{NAME}}|${NAME}|g" | \
+   sed "s|{{NAME}}|${NAME}|g" $TEMPLATE_PATH | \
     sed "s|{{BASE_IMAGE}}|$BASE_IMAGE|g" | \
     sed "s|{{BASE_REPO}}|$BASE_REPO|g" | \
     sed "/{{DOCKERFILE_BASIC_SAMPLE}}/ r ${BASIC_TEMP_PATH}" | \

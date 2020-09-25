@@ -1,9 +1,0 @@
-#!/bin/bash
-
-NAME=redis
-BASE_REPO=redis
-VARIANTS=()
-
-INCLUDE_ALPINE=true
-
-source ../shared/images/generate.sh

@@ -24,3 +24,8 @@ clean: $(foreach b, $(BUNDLES), $(b)/clean)
 
 %/clean:
 	cd $(@D) ; rm -r images || true
+
+list_bundles: $(foreach b, $(BUNDLES), $(b)/echo_bundle)
+
+%/echo_bundle:
+	echo $(@D) >> BUNDLES.txt
