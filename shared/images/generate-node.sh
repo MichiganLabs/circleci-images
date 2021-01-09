@@ -29,7 +29,6 @@ EOF
   echo 'RUN node --version'
 
   echo ''
-  echo 'USER circleci'
 }
 
 function generate_node_browser_variant() {

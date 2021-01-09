@@ -13,11 +13,6 @@ RUN chmod +rx /bin/circle-android
 # Skip the first line of the Dockerfile template (FROM ${BASE})
 syscmd(`tail -n +2 ../shared/images/Dockerfile-basic.template')
 
-# Now commands run as user `circleci`
-
-# Switching user can confuse Docker's idea of $HOME, so we set it explicitly
-ENV HOME /home/circleci
-
 RUN sudo apt-get update -qqy && sudo apt-get install -qqy \
         python-dev \
         python-pip \
@@ -38,33 +33,17 @@ ARG android_home=/opt/android/sdk
 
 RUN sudo apt-get update && \
     sudo apt-get install --yes \
+        ruby-dev rubygems \
         xvfb lib32z1 lib32stdc++6 build-essential \
         libcurl4-openssl-dev libglu1-mesa libxi-dev libxmu-dev \
         libglu1-mesa-dev && \
     sudo rm -rf /var/lib/apt/lists/*
 
-# Install Ruby
-RUN sudo apt-get update && \
-    cd /tmp && wget -O ruby-install-0.6.1.tar.gz https://github.com/postmodern/ruby-install/archive/v0.6.1.tar.gz && \
-    tar -xzvf ruby-install-0.6.1.tar.gz && \
-    cd ruby-install-0.6.1 && \
-    sudo make install && \
-    ruby-install --cleanup ruby 2.6.1 && \
-    rm -r /tmp/ruby-install-* && \
-    sudo rm -rf /var/lib/apt/lists/*
-
-ENV PATH ${HOME}/.rubies/ruby-2.6.1/bin:${PATH}
+# ENV PATH ${HOME}/.rubies/ruby-2.6.1/bin:${PATH}
 RUN echo 'gem: --env-shebang --no-rdoc --no-ri' >> ~/.gemrc && gem install bundler
-
-# Install crashlytics tooklit
-RUN mkdir -p $HOME/Library/CrashlyticsAndroid && \
-    curl --silent --show-error --location --fail --retry 3 --output /tmp/crashlytics.zip https://ssl-download-crashlytics-com.s3.amazonaws.com/android/ant/crashlytics.zip && \
-    unzip /tmp/crashlytics.zip -d $HOME/Library/CrashlyticsAndroid && \
-    rm -f /tmp/crashlytics.zip
 
 # Download and install Android Commandline Tools
 RUN sudo mkdir -p ${android_home}/cmdline-tools && \
-    sudo chown -R circleci:circleci ${android_home} && \
     wget -O /tmp/cmdline-tools.zip -t 5 "${cmdline_tools}" && \
     unzip -q /tmp/cmdline-tools.zip -d ${android_home}/cmdline-tools && \
     rm /tmp/cmdline-tools.zip

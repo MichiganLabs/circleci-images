@@ -55,62 +55,6 @@ function update_aliases() {
     done
 }
 
-function run_goss_tests() {
-    # make a copy of the Dockerfile in question, so we can modify the entrypoint, etc.
-    GOSS_DOCKERFILE_PATH=~/circleci-bundles/$(echo ${DOCKERFILE_PATH} | sed 's|/Dockerfile|/goss|g')
-
-    mkdir $GOSS_DOCKERFILE_PATH
-
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "copying Dockerfile to $GOSS_DOCKERFILE_PATH for testing modifications..."
-    cp ~/circleci-bundles/$DOCKERFILE_PATH $GOSS_DOCKERFILE_PATH
-
-    # cat our additions onto the Dockerfile copy
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "adding the following modifications to copied Dockerfile..."
-    echo "----------------------------------------------------------------------------------------------------"
-    cat ~/circleci-bundles/shared/goss/goss-add.Dockerfile
-    cat ~/circleci-bundles/shared/goss/goss-add.Dockerfile >> $GOSS_DOCKERFILE_PATH/Dockerfile
-
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "copying custom entrypoint for testing..."
-    echo "----------------------------------------------------------------------------------------------------"
-    cat ~/circleci-bundles/shared/goss/goss-entrypoint.sh
-    cp ~/circleci-bundles/shared/goss/goss-entrypoint.sh $GOSS_DOCKERFILE_PATH
-
-    # build our test image
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "building modified test image: $IMAGE_NAME-goss..."
-    echo "----------------------------------------------------------------------------------------------------"
-    docker build -t $IMAGE_NAME-goss $GOSS_DOCKERFILE_PATH || (sleep 2; echo "retry building $IMAGE_NAME-goss"; docker build -t $IMAGE_NAME-goss $GOSS_DOCKERFILE_PATH)
-
-    # run goss tests
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "running goss tests on $IMAGE_NAME-goss..."
-    echo "----------------------------------------------------------------------------------------------------"
-
-    # run once with normal output, for stdout
-    dgoss run $IMAGE_NAME-goss
-
-    # save JUnit output to variable so we can control what we store
-    export GOSS_OPTS="--format junit"
-    results=$(dgoss run $IMAGE_NAME-goss)
-
-    RESULTS_FILE=${IMAGE_NAME#*:}
-
-    echo '<?xml version="1.0" encoding="UTF-8"?>' > \
-      ~/circleci-bundles/test-results/$PLATFORM/$RESULTS_FILE.xml
-    echo "${results#*<?xml version=\"1.0\" encoding=\"UTF-8\"?>}" | \
-      sed "s|testsuite name=\"goss\"|testsuite name=\"$IMAGE_NAME\"|g" >> \
-      ~/circleci-bundles/test-results/$PLATFORM/$RESULTS_FILE.xml
-
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "removing goss variant..."
-    echo "----------------------------------------------------------------------------------------------------"
-    docker image rm $IMAGE_NAME-goss
-    echo "----------------------------------------------------------------------------------------------------"
-}
-
 # pull to get cache and avoid recreating images unnecessarily
 docker pull $IMAGE_NAME || true
 
@@ -133,8 +77,6 @@ then
     # and this should only restart with the last failed step
     docker build -t $IMAGE_NAME . || (sleep 2; echo "retry building $IMAGE_NAME"; docker build -t $IMAGE_NAME .)
 
-    run_goss_tests
-
     # provide an option to build but not push images
     # this can be used to build/test images on forked PRs
     # or just to skip pushing if desired
@@ -155,8 +97,6 @@ else
     # when building the new base image - always try to pull from latest
     # also keep new base images around for variants
     docker build --pull -t $IMAGE_NAME . || (sleep 2; echo "retry building $IMAGE_NAME"; docker build --pull -t $IMAGE_NAME .)
-
-    run_goss_tests
 
     # provide an option to build but not push images
     # this can be used to build/test images on forked PRs
