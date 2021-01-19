@@ -26,10 +26,10 @@ RUN sudo apt-get update && sudo apt-get install gcc-multilib && \
     sudo pip uninstall crcmod && \
     sudo pip install --no-cache -U crcmod
 
-ARG cmdline_tools=https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+ARG cmdline_tools=https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip
 ARG android_home=/opt/android/sdk
 
-# SHA-256 92ffee5a1d98d856634e8b71132e8a95d96c83a63fde1099be3d86df3106def9
+# SHA-256 87f6dcf41d4e642e37ba03cb2e387a542aa0bd73cb689a9e7152aad40a6e7a08
 
 RUN sudo apt-get update && \
     sudo apt-get install --yes \
